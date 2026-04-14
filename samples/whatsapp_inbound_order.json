@@ -1,0 +1,22 @@
+{
+  "entry": [
+    {
+      "changes": [
+        {
+          "value": {
+            "messages": [
+              {
+                "id": "wamid.test002",
+                "from": "919811112222",
+                "type": "text",
+                "text": {
+                  "body": "2 masala chai, 4 samosa, 2 plain maggi, 2 nimbu pani"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

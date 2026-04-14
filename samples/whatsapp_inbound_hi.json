@@ -1,0 +1,22 @@
+{
+  "entry": [
+    {
+      "changes": [
+        {
+          "value": {
+            "messages": [
+              {
+                "id": "wamid.test001",
+                "from": "919811112222",
+                "type": "text",
+                "text": {
+                  "body": "Hi"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

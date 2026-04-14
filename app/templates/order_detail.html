@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="grid">
+    <article class="panel">
+        <h2>Order CH{{ "%04d"|format(order.id) }}</h2>
+        <p><strong>Status:</strong> <span class="badge">{{ order.status }}</span></p>
+        <p><strong>Customer:</strong> {{ order.customer.name or "Unknown" }}</p>
+        <p><strong>Phone:</strong> {{ order.customer.phone_number or order.customer.wa_id }}</p>
+        <p><strong>Address:</strong> {{ order.address.property_name }}, Block {{ order.address.block_code }}, Flat {{ order.address.flat_no }}</p>
+        <p><strong>Total:</strong> Rs {{ order.subtotal|int }}</p>
+
+        <form method="post" action="/dashboard/orders/{{ order.id }}/status" class="status-form">
+            <label for="status">Update Status</label>
+            <select id="status" name="status">
+                {% for value in ["confirmed", "preparing", "ready", "completed", "cancelled"] %}
+                <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ value }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="button">Save</button>
+        </form>
+    </article>
+
+    <article class="panel">
+        <h2>Items</h2>
+        <ul class="items-list">
+            {% for item in order.cart.items %}
+            <li>
+                <span>{{ item.qty }} x {{ item.item_name }}</span>
+                <strong>Rs {{ item.line_total|int }}</strong>
+            </li>
+            {% endfor %}
+        </ul>
+    </article>
+</section>
+{% endblock %}

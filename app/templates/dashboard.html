@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+    <h2>Orders</h2>
+    {% if orders %}
+    <table class="orders-table">
+        <thead>
+            <tr>
+                <th>Order</th>
+                <th>Customer</th>
+                <th>Address</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td><a href="/dashboard/orders/{{ order.id }}">CH{{ "%04d"|format(order.id) }}</a></td>
+                <td>
+                    <strong>{{ order.customer.name or "Unknown" }}</strong><br>
+                    <span>{{ order.customer.phone_number or order.customer.wa_id }}</span>
+                </td>
+                <td>{{ order.address.property_name }}, {{ order.address.block_code }} {{ order.address.flat_no }}</td>
+                <td>Rs {{ order.subtotal|int }}</td>
+                <td><span class="badge">{{ order.status }}</span></td>
+                <td>{{ order.created_at.strftime("%d %b %Y %H:%M") }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No orders yet. Once the webhook starts receiving WhatsApp messages, confirmed orders will appear here.</p>
+    {% endif %}
+</section>
+{% endblock %}
