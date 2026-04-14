@@ -35,9 +35,12 @@ def get_menu(db: Session = Depends(get_db)):
 def get_runtime_settings():
     return {
         "business_name": settings.business_name,
+        "adk_app_name": settings.adk_app_name,
+        "adk_session_database_url": settings.adk_session_database_url,
         "property_name": settings.property_name,
         "min_order_value": settings.min_order_value,
         "allowed_blocks": settings.allowed_blocks,
+        "adk_runtime_enabled": True,
         "whatsapp_live_configured": bool(
             settings.whatsapp_access_token and settings.whatsapp_phone_number_id
         ),

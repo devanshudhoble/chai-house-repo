@@ -18,6 +18,12 @@ class Repository:
     def __init__(self, db: Session):
         self.db = db
 
+    def get_customer(self, customer_id: int) -> Customer | None:
+        return self.db.get(Customer, customer_id)
+
+    def get_conversation(self, conversation_id: int) -> Conversation | None:
+        return self.db.get(Conversation, conversation_id)
+
     def get_or_create_customer(self, wa_id: str) -> Customer:
         customer = self.db.scalar(select(Customer).where(Customer.wa_id == wa_id))
         if customer:

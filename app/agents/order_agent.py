@@ -18,13 +18,8 @@ class AgentResult:
     state: dict
 
 
-class ChaihouseOrderingAgent:
-    """ADK-ready ordering orchestrator.
-
-    The POC decision flow runs locally so the system works immediately.
-    Swap this logic with a real ADK runner later without changing the rest of
-    the webhook, persistence, or dashboard layers.
-    """
+class ChaihouseOrderFlow:
+    """Deterministic business flow used by the ADK custom agent."""
 
     def __init__(self, repo: Repository):
         self.repo = repo

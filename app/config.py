@@ -7,11 +7,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "Chaihouse WhatsApp Ordering POC"
+    adk_app_name: str = "chaihouse_whatsapp_ordering_poc"
     environment: str = "development"
     secret_key: str = "change-me"
     base_url: str = "http://127.0.0.1:8000"
 
     database_url: str = "sqlite:///./chaihouse.db"
+    adk_session_database_url: str = "sqlite+aiosqlite:///./chaihouse.db"
 
     business_name: str = "Chaihouse Cafe"
     property_name: str = "Green Heritage"

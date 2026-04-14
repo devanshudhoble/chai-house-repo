@@ -6,6 +6,7 @@
 - Database models are implemented for customers, addresses, conversations, carts, orders, messages, and menu items.
 - Chaihouse menu is seeded for the POC.
 - WhatsApp webhook verification and receive routes are implemented.
+- Google ADK runtime is integrated with a real `Runner`, a custom ADK agent, and persistent ADK session storage.
 - Ordering flow is implemented:
   - greeting
   - menu sending
@@ -27,7 +28,7 @@
 - Deploy the backend to a public HTTPS host for live webhook use.
 - Configure Meta webhook verification and production callback URL.
 - Integrate with Petpooja in a later phase.
-- Replace the local POC agent flow with a full ADK runtime flow later if needed.
+- Optionally upgrade the current deterministic ADK custom agent to a Gemini-powered `LlmAgent` later.
 
 ## Local Testing
 
@@ -59,4 +60,5 @@ python scripts\send_sample_webhook.py --file samples\whatsapp_inbound_order.json
 ## Notes
 
 - Without live Meta credentials, outbound WhatsApp replies are stubbed and logged locally.
+- ADK is already integrated in the runtime. The remaining ADK-related work is optional model-driven enhancement, not base runtime setup.
 - The POC is ready for local demo use now.

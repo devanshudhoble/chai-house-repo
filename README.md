@@ -3,7 +3,7 @@
 FastAPI-based proof of concept for WhatsApp ordering with:
 
 - WhatsApp webhook endpoints
-- ADK-ready ordering agent scaffold
+- real Google ADK runtime integration
 - SQLite persistence
 - staff dashboard
 - Green Heritage address validation
@@ -14,7 +14,7 @@ FastAPI-based proof of concept for WhatsApp ordering with:
 
 1. Receives inbound WhatsApp messages through a webhook.
 2. Creates or loads the customer and active conversation.
-3. Runs an ordering flow that:
+3. Runs the Chaihouse ordering flow through a real Google ADK `Runner` with persistent ADK session storage:
    - greets the customer
    - sends the menu
    - builds a cart
@@ -38,6 +38,11 @@ app/
   models.py
   seed.py
 ```
+
+Tracking docs:
+
+- `CURRENT_STATUS.md` for completed work and local test notes
+- `PENDING.md` for remaining live-integration work
 
 ## Local Run
 
@@ -68,6 +73,7 @@ Copy `.env.example` to `.env` and edit values as needed:
 
 ```env
 DATABASE_URL=sqlite:///./chaihouse.db
+ADK_SESSION_DATABASE_URL=sqlite+aiosqlite:///./chaihouse.db
 WHATSAPP_VERIFY_TOKEN=chaihouse-verify-token
 WHATSAPP_ACCESS_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
@@ -132,8 +138,9 @@ Then continue with messages like:
 
 ## Notes
 
-- The ordering flow is implemented locally so the POC works immediately.
-- The `ChaihouseOrderingAgent` is structured as an ADK-ready layer. Later, its decision logic can be replaced with a real ADK runner while keeping the same webhook, DB, and dashboard wiring.
+- The repo is now ADK-backed. Inbound WhatsApp turns run through a real Google ADK `Runner`.
+- The current ADK agent is a custom deterministic `BaseAgent`, so the POC works locally without Gemini credentials.
+- If you later want a model-driven version, this ADK runtime can be upgraded to an `LlmAgent` without replacing the webhook, DB, or dashboard layers.
 - The current allowed block list is configurable through `.env`.
 
 ## WhatsApp Cloud API Live Hookup

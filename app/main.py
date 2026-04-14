@@ -41,7 +41,9 @@ def healthcheck() -> JSONResponse:
         {
             "status": "ok",
             "app": settings.app_name,
+            "adk_app_name": settings.adk_app_name,
             "environment": settings.environment,
+            "adk_runtime_enabled": True,
             "whatsapp_live_configured": bool(
                 settings.whatsapp_access_token and settings.whatsapp_phone_number_id
             ),
