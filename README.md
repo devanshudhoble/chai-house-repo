@@ -15,6 +15,9 @@ FastAPI-based proof of concept for WhatsApp ordering with:
 1. Receives inbound WhatsApp messages through a webhook.
 2. Creates or loads the customer and active conversation.
 3. Runs the Chaihouse ordering flow through a real Google ADK `Runner` with persistent ADK session storage:
+   - root `ChaihouseMainAgent` routes by conversation step
+   - workflow sub-agents handle welcome, cart, details, and confirmation
+   - structured business function-tools return typed payloads for parsing and validation
    - greets the customer
    - sends the menu
    - builds a cart

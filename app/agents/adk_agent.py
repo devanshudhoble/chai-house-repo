@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from typing import ClassVar
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -9,39 +10,17 @@ from google.adk.events.event_actions import EventActions
 from google.genai import types
 from typing_extensions import override
 
-from app.agents.order_agent import ChaihouseOrderFlow
+from app.agents.order_agent import AgentResult, ChaihouseOrderFlow
 from app.models import Conversation, Customer
 from app.services.repository import Repository
 
 
-class ChaihouseAdkAgent(BaseAgent):
-    """Real ADK custom agent for the Chaihouse ordering flow."""
+class ChaihouseWorkflowAgent(BaseAgent):
+    """Base ADK workflow agent with shared customer, conversation, and state helpers."""
 
     repo: Repository
 
-    @override
-    async def _run_async_impl(
-        self,
-        ctx: InvocationContext,
-    ) -> AsyncGenerator[Event, None]:
-        customer, conversation, user_text = self._load_runtime_context(ctx)
-        flow = ChaihouseOrderFlow(self.repo)
-        result = flow.handle_message(customer, conversation, user_text)
-
-        yield Event(
-            invocation_id=ctx.invocation_id,
-            author=self.name,
-            branch=ctx.branch,
-            content=types.Content(
-                role="model",
-                parts=[types.Part.from_text(text=result.text)],
-            ),
-            actions=EventActions(
-                state_delta=self._build_state_delta(customer, result.next_step, result.state)
-            ),
-        )
-
-    def _load_runtime_context(
+    def load_runtime_context(
         self,
         ctx: InvocationContext,
     ) -> tuple[Customer, Conversation, str]:
@@ -65,9 +44,10 @@ class ChaihouseAdkAgent(BaseAgent):
 
         return customer, conversation, user_text
 
-    def _build_state_delta(self, customer: Customer, step: str, state: dict) -> dict:
+    def build_state_delta(self, customer: Customer, step: str, state: dict) -> dict:
         state_delta: dict[str, object] = {
             "step": step,
+            "active_agent": self.name,
             "customer_id": customer.id,
         }
         state_delta.update(state)
@@ -83,3 +63,128 @@ class ChaihouseAdkAgent(BaseAgent):
             state_delta["user:default_flat_no"] = address.flat_no
 
         return state_delta
+
+    def emit_result(
+        self,
+        ctx: InvocationContext,
+        customer: Customer,
+        result: AgentResult,
+    ) -> Event:
+        return Event(
+            invocation_id=ctx.invocation_id,
+            author=self.name,
+            branch=ctx.branch,
+            content=types.Content(
+                role="model",
+                parts=[types.Part.from_text(text=result.text)],
+            ),
+            actions=EventActions(
+                state_delta=self.build_state_delta(customer, result.next_step, result.state)
+            ),
+        )
+
+
+class GreetingMenuAgent(ChaihouseWorkflowAgent):
+    """Handles the initial welcome and first menu response."""
+
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        customer, conversation, user_text = self.load_runtime_context(ctx)
+        flow = ChaihouseOrderFlow(self.repo)
+        result = flow.handle_message(customer, conversation, user_text)
+        yield self.emit_result(ctx, customer, result)
+
+
+class CartRoutingAgent(ChaihouseWorkflowAgent):
+    """Handles cart building, saved profile reuse, and minimum-order checks."""
+
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        customer, conversation, user_text = self.load_runtime_context(ctx)
+        flow = ChaihouseOrderFlow(self.repo)
+        result = flow.handle_message(customer, conversation, user_text)
+        yield self.emit_result(ctx, customer, result)
+
+
+class CustomerDetailsAgent(ChaihouseWorkflowAgent):
+    """Collects and validates customer name, phone, block, and flat details."""
+
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        customer, conversation, user_text = self.load_runtime_context(ctx)
+        flow = ChaihouseOrderFlow(self.repo)
+        result = flow.handle_message(customer, conversation, user_text)
+        yield self.emit_result(ctx, customer, result)
+
+
+class OrderConfirmationAgent(ChaihouseWorkflowAgent):
+    """Handles final order confirmation and completed-order replies."""
+
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        customer, conversation, user_text = self.load_runtime_context(ctx)
+        flow = ChaihouseOrderFlow(self.repo)
+        result = flow.handle_message(customer, conversation, user_text)
+        yield self.emit_result(ctx, customer, result)
+
+
+class ChaihouseMainAgent(ChaihouseWorkflowAgent):
+    """Root ADK agent that routes each turn to the workflow sub-agent for the active step."""
+
+    STEP_TO_AGENT: ClassVar[dict[str, str]] = {
+        "new_chat": "greeting_menu_agent",
+        "collecting_items": "cart_routing_agent",
+        "saved_profile_confirmation": "cart_routing_agent",
+        "collecting_name": "customer_details_agent",
+        "collecting_phone": "customer_details_agent",
+        "collecting_block": "customer_details_agent",
+        "collecting_flat": "customer_details_agent",
+        "confirming_order": "order_confirmation_agent",
+        "completed": "order_confirmation_agent",
+    }
+
+    @override
+    async def _run_async_impl(
+        self,
+        ctx: InvocationContext,
+    ) -> AsyncGenerator[Event, None]:
+        _, conversation, _ = self.load_runtime_context(ctx)
+        agent_name = self.STEP_TO_AGENT.get(conversation.current_step, "cart_routing_agent")
+        routed_agent = self.find_sub_agent(agent_name)
+        if not routed_agent:
+            raise ValueError(f"Sub-agent `{agent_name}` is not registered in the Chaihouse ADK agent tree.")
+
+        async for event in routed_agent.run_async(ctx):
+            yield event
+
+
+def build_chaihouse_agent(repo: Repository) -> ChaihouseMainAgent:
+    """Build the Chaihouse ADK root agent tree with routed workflow sub-agents."""
+
+    return ChaihouseMainAgent(
+        name="chaihouse_main_agent",
+        description="Routes Chaihouse WhatsApp order turns to the correct workflow sub-agent.",
+        repo=repo,
+        sub_agents=[
+            GreetingMenuAgent(
+                name="greeting_menu_agent",
+                description="Welcomes the customer and sends the menu.",
+                repo=repo,
+            ),
+            CartRoutingAgent(
+                name="cart_routing_agent",
+                description="Builds the cart, enforces the minimum order rule, and handles saved profile reuse.",
+                repo=repo,
+            ),
+            CustomerDetailsAgent(
+                name="customer_details_agent",
+                description="Collects and validates customer contact and delivery details.",
+                repo=repo,
+            ),
+            OrderConfirmationAgent(
+                name="order_confirmation_agent",
+                description="Confirms the order and handles post-confirmation replies.",
+                repo=repo,
+            ),
+        ],
+    )

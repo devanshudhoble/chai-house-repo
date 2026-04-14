@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from app.config import get_settings
 from app.models import Cart, Customer
@@ -14,7 +15,18 @@ class BusinessTools:
     def __init__(self, repo: Repository):
         self.repo = repo
 
-    def build_menu_message(self) -> str:
+    def get_menu_payload(self, flags: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Return the current menu as a structured payload.
+
+        Args:
+            flags: Optional behavior flags.
+                - include_examples: bool, default True
+                - include_parcel_note: bool, default True
+
+        Returns:
+            A dictionary with grouped menu lines, optional notes, and guidance text.
+        """
+        flags = flags or {}
         grouped: dict[str, list[str]] = {}
         for item in self.repo.get_menu_items():
             grouped.setdefault(item.category, []).append(f"- {item.name}: Rs {int(item.price)}")
@@ -23,11 +35,35 @@ class BusinessTools:
         for category, entries in grouped.items():
             lines.append(f"\n{category}")
             lines.extend(entries)
-        lines.append("\nNote: Parcel charges are extra.")
-        lines.append("Reply with your order. Example: 2 masala chai, 2 samosa, 1 plain maggi")
-        return "\n".join(lines)
 
-    def parse_order_text(self, text: str) -> tuple[list[tuple[object, int]], list[str]]:
+        if flags.get("include_parcel_note", True):
+            lines.append("\nNote: Parcel charges are extra.")
+        if flags.get("include_examples", True):
+            lines.append("Reply with your order. Example: 2 masala chai, 2 samosa, 1 plain maggi")
+
+        return {
+            "ok": True,
+            "menu_lines": lines,
+            "categories": grouped,
+        }
+
+    def build_menu_message(self, flags: dict[str, Any] | None = None) -> str:
+        payload = self.get_menu_payload(flags=flags)
+        return "\n".join(payload["menu_lines"])
+
+    def parse_order_payload(self, text: str, flags: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Parse a free-text order into matched items and unknown fragments.
+
+        Args:
+            text: Raw customer order text such as "2 masala chai, 1 samosa".
+            flags: Optional parsing flags.
+                - split_and: bool, default True
+                - allow_default_qty: bool, default True
+
+        Returns:
+            A dictionary containing matched menu items, quantities, and unknown text fragments.
+        """
+        flags = flags or {}
         cleaned = text.lower().replace("&", ",").replace(" and ", ",")
         chunks = [chunk.strip() for chunk in cleaned.split(",") if chunk.strip()]
         matched: list[tuple[object, int]] = []
@@ -35,7 +71,7 @@ class BusinessTools:
 
         for chunk in chunks:
             qty_match = re.match(r"^(?P<qty>\d+)\s+(?P<name>.+)$", chunk)
-            qty = int(qty_match.group("qty")) if qty_match else 1
+            qty = int(qty_match.group("qty")) if qty_match else (1 if flags.get("allow_default_qty", True) else 0)
             query = qty_match.group("name") if qty_match else chunk
             menu_item = self.repo.find_menu_item_by_query(query)
             if menu_item:
@@ -43,29 +79,138 @@ class BusinessTools:
             else:
                 unknown.append(chunk)
 
-        return matched, unknown
+        return {
+            "ok": True,
+            "matches": matched,
+            "unknown": unknown,
+            "parsed_chunks": chunks,
+        }
+
+    def parse_order_text(self, text: str) -> tuple[list[tuple[object, int]], list[str]]:
+        payload = self.parse_order_payload(text)
+        return payload["matches"], payload["unknown"]
+
+    def validate_phone_payload(self, phone: str, flags: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Validate and normalize a customer phone number.
+
+        Args:
+            phone: Raw phone value from the customer.
+            flags: Optional validation flags.
+                - required_length: int, default 10
+
+        Returns:
+            A dictionary with validation status and normalized digits.
+        """
+        flags = flags or {}
+        digits = re.sub(r"\D", "", phone)
+        required_length = int(flags.get("required_length", 10))
+        return {
+            "ok": len(digits) == required_length,
+            "normalized_phone": digits,
+            "required_length": required_length,
+        }
 
     def validate_phone(self, phone: str) -> bool:
-        digits = re.sub(r"\D", "", phone)
-        return len(digits) == 10
+        return self.validate_phone_payload(phone)["ok"]
 
     def normalize_phone(self, phone: str) -> str:
-        return re.sub(r"\D", "", phone)
+        return self.validate_phone_payload(phone)["normalized_phone"]
+
+    def validate_block_payload(
+        self,
+        block_code: str,
+        flags: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Validate and normalize a Green Heritage delivery block code.
+
+        Args:
+            block_code: Raw block value from the customer.
+            flags: Optional validation flags.
+                - allowed_blocks: list[str], defaults to app settings
+
+        Returns:
+            A dictionary with validation status, normalized block, and the allowed list.
+        """
+        flags = flags or {}
+        allowed_blocks = [block.strip().upper() for block in flags.get("allowed_blocks", settings.allowed_blocks)]
+        normalized = block_code.strip().upper()
+        return {
+            "ok": normalized in allowed_blocks,
+            "normalized_block": normalized,
+            "allowed_blocks": allowed_blocks,
+        }
 
     def validate_block(self, block_code: str) -> bool:
-        return block_code.strip().upper() in settings.allowed_blocks
+        return self.validate_block_payload(block_code)["ok"]
 
     def normalize_block(self, block_code: str) -> str:
-        return block_code.strip().upper()
+        return self.validate_block_payload(block_code)["normalized_block"]
 
-    def cart_summary(self, cart: Cart) -> str:
+    def get_cart_summary_payload(
+        self,
+        cart: Cart,
+        flags: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build a structured cart summary for customer-facing or internal use.
+
+        Args:
+            cart: Active cart entity.
+            flags: Optional summary flags.
+                - include_header: bool, default True
+
+        Returns:
+            A dictionary with summary lines, subtotal, and item rows.
+        """
+        flags = flags or {}
         cart = self.repo.get_cart(cart.id) or cart
-        lines = ["Your current cart:"]
+        lines = ["Your current cart:"] if flags.get("include_header", True) else []
+        items: list[dict[str, Any]] = []
         for item in cart.items:
+            items.append(
+                {
+                    "item_name": item.item_name,
+                    "qty": item.qty,
+                    "unit_price": int(item.unit_price),
+                    "line_total": int(item.line_total),
+                }
+            )
             lines.append(f"- {item.qty} x {item.item_name} = Rs {int(item.line_total)}")
         lines.append(f"Subtotal: Rs {int(cart.subtotal)}")
-        return "\n".join(lines)
+        return {
+            "ok": True,
+            "lines": lines,
+            "items": items,
+            "subtotal": int(cart.subtotal),
+        }
+
+    def cart_summary(self, cart: Cart) -> str:
+        return "\n".join(self.get_cart_summary_payload(cart)["lines"])
+
+    def get_saved_profile_payload(
+        self,
+        customer: Customer,
+        flags: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Return whether the customer has a reusable saved profile and address.
+
+        Args:
+            customer: Customer entity.
+            flags: Optional flags reserved for future profile policies.
+
+        Returns:
+            A dictionary with saved-profile availability and current default address fields.
+        """
+        flags = flags or {}
+        address = self.repo.get_default_address(customer)
+        return {
+            "ok": True,
+            "has_saved_profile": bool(customer.name and customer.phone_number and address),
+            "name": customer.name,
+            "phone_number": customer.phone_number,
+            "block_code": address.block_code if address else None,
+            "flat_no": address.flat_no if address else None,
+            "flags": flags,
+        }
 
     def customer_has_saved_profile(self, customer: Customer) -> bool:
-        address = self.repo.get_default_address(customer)
-        return bool(customer.name and customer.phone_number and address)
+        return self.get_saved_profile_payload(customer)["has_saved_profile"]

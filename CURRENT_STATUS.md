@@ -7,6 +7,7 @@
 - Chaihouse menu is seeded for the POC.
 - WhatsApp webhook verification and receive routes are implemented.
 - Google ADK runtime is integrated with a real `Runner`, a custom ADK agent, and persistent ADK session storage.
+- The ADK layer now uses a main Chaihouse agent, routed workflow sub-agents, and structured business function-tools with documented inputs and flags.
 - Ordering flow is implemented:
   - greeting
   - menu sending

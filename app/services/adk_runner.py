@@ -9,7 +9,7 @@ from google.adk.sessions import DatabaseSessionService
 from google.genai import types
 from sqlalchemy.orm import Session
 
-from app.agents.adk_agent import ChaihouseAdkAgent
+from app.agents.adk_agent import build_chaihouse_agent
 from app.config import get_settings
 from app.models import Conversation, Customer
 from app.services.repository import Repository
@@ -27,11 +27,7 @@ class ChaihouseAdkRuntime:
     def __init__(self, db: Session):
         self.repo = Repository(db)
         self.session_service = get_adk_session_service()
-        root_agent = ChaihouseAdkAgent(
-            name="chaihouse_order_agent",
-            description="Handles Chaihouse WhatsApp ordering conversations.",
-            repo=self.repo,
-        )
+        root_agent = build_chaihouse_agent(self.repo)
         root_agent._adk_origin_app_name = settings.adk_app_name
         root_agent._adk_origin_path = Path(__file__).resolve().parents[2]
         self.runner = Runner(
@@ -75,7 +71,7 @@ class ChaihouseAdkRuntime:
                 parts=[types.Part.from_text(text=text)],
             ),
         ):
-            if not event.is_final_response() or event.author != "chaihouse_order_agent":
+            if not event.is_final_response() or event.author == "user":
                 continue
             if not event.content or not event.content.parts:
                 continue
