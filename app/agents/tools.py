@@ -1,14 +1,25 @@
 from __future__ import annotations
 
 import re
+from contextlib import contextmanager
 from typing import Any
 
+from app.db import SessionLocal
 from app.config import get_settings
 from app.models import Cart, Customer
 from app.services.repository import Repository
 
 
 settings = get_settings()
+
+
+@contextmanager
+def repository_context():
+    db = SessionLocal()
+    try:
+        yield Repository(db)
+    finally:
+        db.close()
 
 
 class BusinessTools:
@@ -214,3 +225,98 @@ class BusinessTools:
 
     def customer_has_saved_profile(self, customer: Customer) -> bool:
         return self.get_saved_profile_payload(customer)["has_saved_profile"]
+
+
+# =========================================================
+# TOOL FUNCTIONS
+# =========================================================
+def get_menu_tool(args: dict | None = None, flags: dict | None = None) -> dict[str, Any]:
+    """Return the current Chaihouse menu as a structured payload.
+
+    Args:
+        args: Optional arguments reserved for future filtering.
+        flags: Optional output flags.
+            - include_examples: bool, default True
+            - include_parcel_note: bool, default True
+
+    Returns:
+        Structured menu data with grouped categories and rendered menu lines.
+    """
+    _ = args or {}
+    flags = flags or {}
+    with repository_context() as repo:
+        return BusinessTools(repo).get_menu_payload(flags=flags)
+
+
+def parse_order_tool(order_text: str, args: dict | None = None, flags: dict | None = None) -> dict[str, Any]:
+    """Parse customer order text into known menu items and unknown fragments.
+
+    Args:
+        order_text: Raw order text from the customer.
+        args: Optional parsing arguments reserved for future expansion.
+        flags: Optional behavior flags.
+            - allow_default_qty: bool, default True
+
+    Returns:
+        Structured parse result including matched items and unmatched fragments.
+    """
+    _ = args or {}
+    flags = flags or {}
+    with repository_context() as repo:
+        return BusinessTools(repo).parse_order_payload(order_text, flags=flags)
+
+
+def validate_phone_tool(phone_number: str, args: dict | None = None, flags: dict | None = None) -> dict[str, Any]:
+    """Validate and normalize a customer phone number.
+
+    Args:
+        phone_number: Raw phone number from the customer.
+        args: Optional validation arguments reserved for future policy use.
+        flags: Optional validation flags.
+            - required_length: int, default 10
+
+    Returns:
+        Validation result including normalized digits.
+    """
+    _ = args or {}
+    flags = flags or {}
+    with repository_context() as repo:
+        return BusinessTools(repo).validate_phone_payload(phone_number, flags=flags)
+
+
+def validate_block_tool(block_code: str, args: dict | None = None, flags: dict | None = None) -> dict[str, Any]:
+    """Validate a Green Heritage block code against the configured serviceable blocks.
+
+    Args:
+        block_code: Raw block code from the customer.
+        args: Optional validation arguments reserved for future rules.
+        flags: Optional validation flags.
+            - allowed_blocks: list[str], defaults to configured app blocks
+
+    Returns:
+        Validation result including normalized block code.
+    """
+    _ = args or {}
+    flags = flags or {}
+    with repository_context() as repo:
+        return BusinessTools(repo).validate_block_payload(block_code, flags=flags)
+
+
+def get_saved_profile_tool(customer_id: int, args: dict | None = None, flags: dict | None = None) -> dict[str, Any]:
+    """Load a saved customer profile for address reuse decisions.
+
+    Args:
+        customer_id: Internal customer identifier.
+        args: Optional arguments reserved for future profile scopes.
+        flags: Optional flags reserved for future profile policies.
+
+    Returns:
+        Structured saved-profile data with customer contact and default address details.
+    """
+    _ = args or {}
+    flags = flags or {}
+    with repository_context() as repo:
+        customer = repo.get_customer(customer_id)
+        if not customer:
+            return {"ok": False, "message": "Customer not found", "customer_id": customer_id}
+        return BusinessTools(repo).get_saved_profile_payload(customer, flags=flags)

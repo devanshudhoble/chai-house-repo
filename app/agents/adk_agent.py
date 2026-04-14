@@ -158,33 +158,68 @@ class ChaihouseMainAgent(ChaihouseWorkflowAgent):
             yield event
 
 
+# =========================================================
+# SUB-AGENTS
+# =========================================================
+def create_greeting_menu_agent(repo: Repository) -> GreetingMenuAgent:
+    """Create the ADK sub-agent that welcomes the customer and sends the menu."""
+
+    return GreetingMenuAgent(
+        name="greeting_menu_agent",
+        description="Welcomes the customer and sends the menu.",
+        repo=repo,
+    )
+
+
+def create_cart_routing_agent(repo: Repository) -> CartRoutingAgent:
+    """Create the ADK sub-agent that manages cart building and minimum-order checks."""
+
+    return CartRoutingAgent(
+        name="cart_routing_agent",
+        description="Builds the cart, enforces the minimum order rule, and handles saved profile reuse.",
+        repo=repo,
+    )
+
+
+def create_customer_details_agent(repo: Repository) -> CustomerDetailsAgent:
+    """Create the ADK sub-agent that collects and validates delivery details."""
+
+    return CustomerDetailsAgent(
+        name="customer_details_agent",
+        description="Collects and validates customer contact and delivery details.",
+        repo=repo,
+    )
+
+
+def create_order_confirmation_agent(repo: Repository) -> OrderConfirmationAgent:
+    """Create the ADK sub-agent that confirms the order and handles completed-state replies."""
+
+    return OrderConfirmationAgent(
+        name="order_confirmation_agent",
+        description="Confirms the order and handles post-confirmation replies.",
+        repo=repo,
+    )
+
+
+# =========================================================
+# MAIN AGENT
+# =========================================================
 def build_chaihouse_agent(repo: Repository) -> ChaihouseMainAgent:
-    """Build the Chaihouse ADK root agent tree with routed workflow sub-agents."""
+    """Build the main Chaihouse ADK agent with routed workflow sub-agents."""
+
+    greeting_menu_agent = create_greeting_menu_agent(repo)
+    cart_routing_agent = create_cart_routing_agent(repo)
+    customer_details_agent = create_customer_details_agent(repo)
+    order_confirmation_agent = create_order_confirmation_agent(repo)
 
     return ChaihouseMainAgent(
         name="chaihouse_main_agent",
         description="Routes Chaihouse WhatsApp order turns to the correct workflow sub-agent.",
         repo=repo,
         sub_agents=[
-            GreetingMenuAgent(
-                name="greeting_menu_agent",
-                description="Welcomes the customer and sends the menu.",
-                repo=repo,
-            ),
-            CartRoutingAgent(
-                name="cart_routing_agent",
-                description="Builds the cart, enforces the minimum order rule, and handles saved profile reuse.",
-                repo=repo,
-            ),
-            CustomerDetailsAgent(
-                name="customer_details_agent",
-                description="Collects and validates customer contact and delivery details.",
-                repo=repo,
-            ),
-            OrderConfirmationAgent(
-                name="order_confirmation_agent",
-                description="Confirms the order and handles post-confirmation replies.",
-                repo=repo,
-            ),
+            greeting_menu_agent,
+            cart_routing_agent,
+            customer_details_agent,
+            order_confirmation_agent,
         ],
     )
